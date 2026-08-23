@@ -1,0 +1,31 @@
+name: MCP Live Diagnostic
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 5.1 GET /health
+        run: |
+          echo "=== 5.1 GET /health ==="
+          curl -sS -i https://bezzy-google-mcp-production-3a49.up.railway.app/health
+
+      - name: 5.2 GET /.well-known/oauth-authorization-server
+        run: |
+          echo "=== 5.2 GET /.well-known/oauth-authorization-server ==="
+          curl -sS -i https://bezzy-google-mcp-production-3a49.up.railway.app/.well-known/oauth-authorization-server
+
+      - name: 5.2 GET /.well-known/oauth-protected-resource/mcp
+        run: |
+          echo "=== 5.2 GET /.well-known/oauth-protected-resource/mcp ==="
+          curl -sS -i https://bezzy-google-mcp-production-3a49.up.railway.app/.well-known/oauth-protected-resource/mcp
+
+      - name: 5.3 POST /mcp without credentials
+        run: |
+          echo "=== 5.3 POST /mcp (no auth token) ==="
+          curl -sS -i -X POST https://bezzy-google-mcp-production-3a49.up.railway.app/mcp \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json, text/event-stream" \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"diag","version":"1.0"}}}'
