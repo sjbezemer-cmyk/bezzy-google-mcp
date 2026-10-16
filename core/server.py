@@ -37,6 +37,8 @@ from core.config import (
 )
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
+from core import confirm as bezzy_confirm
 from fastmcp.server.auth.providers.google import GoogleProvider
 from mcp.types import ToolAnnotations, Icon
 from starlette.applications import Starlette
@@ -265,6 +267,20 @@ class SecureFastMCP(FastMCP):
         return app
 
     async def list_tools(self, *, run_middleware: bool = True):
+        """Bezzy 2.3b: add the `confirm` field to the schema of gated tools."""
+        tools = list(await self._list_tools_email_patched(run_middleware=run_middleware))
+        if not bezzy_confirm.CONFIRM_TOOLS:
+            return tools
+        patched = []
+        for tool in tools:
+            if tool.name in bezzy_confirm.CONFIRM_TOOLS:
+                schema = bezzy_confirm.add_confirm_to_schema(tool.name, dict(tool.parameters))
+                patched.append(tool.model_copy(update={"parameters": schema}))
+            else:
+                patched.append(tool)
+        return patched
+
+    async def _list_tools_email_patched(self, *, run_middleware: bool = True):
         """Override to mark user_google_email as optional when USER_GOOGLE_EMAIL is set.
 
         In single-user / self-hosted mode the env var provides the default email, so
@@ -317,6 +333,15 @@ class SecureFastMCP(FastMCP):
         inject the default BEFORE that validation step.
         """
         arguments = arguments or {}
+        # Bezzy 2.3b: confirmation code for dangerous tools. `confirm` is never passed on.
+        confirm_code = arguments.get("confirm") if "confirm" in arguments else None
+        if "confirm" in arguments:
+            arguments = {k: v for k, v in arguments.items() if k != "confirm"}
+        if bezzy_confirm.needs_confirmation(name, arguments):
+            problem = bezzy_confirm.check_confirm_code(bezzy_confirm.TOTP_SECRET, confirm_code)
+            if problem:
+                logger.warning("[confirm] %s refused: %s", name, problem)
+                raise ToolError(f"Refused: {problem}.")
         if is_trust_gateway_identity():
             # The verified gateway principal is authoritative for every tool, and the
             # parameter is gone from tool signatures. Drop any caller-supplied email
