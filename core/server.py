@@ -334,14 +334,18 @@ class SecureFastMCP(FastMCP):
         """
         arguments = arguments or {}
         # Bezzy 2.3b: confirmation code for dangerous tools. `confirm` is never passed on.
-        confirm_code = arguments.get("confirm") if "confirm" in arguments else None
-        if "confirm" in arguments:
-            arguments = {k: v for k, v in arguments.items() if k != "confirm"}
-        if bezzy_confirm.needs_confirmation(name, arguments):
-            problem = bezzy_confirm.check_confirm_code(bezzy_confirm.TOTP_SECRET, confirm_code)
-            if problem:
-                logger.warning("[confirm] %s refused: %s", name, problem)
-                raise ToolError(f"Refused: {problem}.")
+        try:
+            arguments, confirm_token = bezzy_confirm.gate(name, arguments)
+        except bezzy_confirm.ConfirmRefused as refused:
+            logger.warning("[confirm] %s refused: %s", name, refused)
+            raise ToolError(str(refused))
+        try:
+            return await self._call_tool_email_patched(name, arguments, *args, **kwargs)
+        finally:
+            bezzy_confirm.release(confirm_token)
+
+    async def _call_tool_email_patched(self, name: str, arguments: Optional[dict], *args, **kwargs):
+        arguments = arguments or {}
         if is_trust_gateway_identity():
             # The verified gateway principal is authoritative for every tool, and the
             # parameter is gone from tool signatures. Drop any caller-supplied email

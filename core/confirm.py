@@ -8,6 +8,7 @@ Fails closed: a code is required but no secret configured means the call is refu
 """
 
 import base64
+import contextvars
 import hashlib
 import hmac
 import os
@@ -110,3 +111,37 @@ def add_confirm_to_schema(name: str, schema: Dict[str, Any]) -> Dict[str, Any]:
             required.append("confirm")
     props["confirm"] = {"type": "string", "description": desc}
     return dict(schema, properties=props, required=required)
+
+
+# FastMCP's public call_tool starts the middleware chain and then calls call_tool again for
+# the real work (the inner call has run_middleware=False). Without this the second pass
+# would see no code and refuse a call whose code was already accepted (and used up).
+_passed: "contextvars.ContextVar[Optional[str]]" = contextvars.ContextVar(
+    "bezzy_confirm_passed", default=None
+)
+
+
+class ConfirmRefused(Exception):
+    """Raised when a gated call has no valid confirmation code."""
+
+
+def gate(name: str, arguments: Optional[Dict[str, Any]]):
+    """Check the code once per call. Returns (arguments without `confirm`, reset token).
+
+    The caller must pass the token to release() in a finally block. Raises ConfirmRefused
+    with a ready-to-show message when the code is missing or wrong.
+    """
+    args = dict(arguments or {})
+    code = args.pop("confirm", None)
+    token = None
+    if _passed.get() != name and needs_confirmation(name, args):
+        problem = check_confirm_code(TOTP_SECRET, code)
+        if problem:
+            raise ConfirmRefused("Refused: %s." % problem)
+        token = _passed.set(name)
+    return args, token
+
+
+def release(token) -> None:
+    if token is not None:
+        _passed.reset(token)
