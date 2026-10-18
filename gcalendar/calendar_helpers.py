@@ -165,6 +165,15 @@ def _format_event_detail_lines(
     if organizer_str:
         lines.append(f"{prefix}Organizer: {organizer_str}")
 
+    # Bezzy 1.5d: the Calendar API returns these on every event; the Tripwire needs
+    # them to see events created or changed outside the approval flow.
+    created = item.get("created")
+    if created:
+        lines.append(f"{prefix}Created: {created}")
+    updated = item.get("updated")
+    if updated:
+        lines.append(f"{prefix}Updated: {updated}")
+
     meeting_link = _get_meeting_link(item)
     if meeting_link:
         lines.append(f"{prefix}Meeting Link: {meeting_link}")
