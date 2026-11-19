@@ -1,5 +1,6 @@
 """Tests for filename handling in core.attachment_storage."""
 
+import os
 import unicodedata
 
 from core.attachment_storage import sanitize_attachment_filename
@@ -47,3 +48,23 @@ class TestSanitizeAttachmentFilename:
             sep = chr(cp)
             assert unicodedata.category(sep) == "Zs"
             assert sanitize_attachment_filename(f"a{sep}b.txt") == "a b.txt"
+
+
+def test_save_attachment_purges_expired(tmp_path, monkeypatch):
+    import base64
+    from datetime import datetime, timedelta
+
+    from core import attachment_storage as mod
+
+    monkeypatch.setattr(mod, "STORAGE_DIR", tmp_path)
+    storage = mod.AttachmentStorage(expiration_seconds=3600)
+    data = base64.urlsafe_b64encode(b"x").decode()
+
+    old = storage.save_attachment(data, filename="old.txt")
+    storage._metadata[old.file_id]["expires_at"] = datetime.now() - timedelta(seconds=1)
+
+    new = storage.save_attachment(data, filename="new.txt")
+
+    assert old.file_id not in storage._metadata
+    assert not os.path.exists(old.path)
+    assert new.file_id in storage._metadata
