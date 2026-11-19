@@ -268,13 +268,17 @@ class SecureFastMCP(FastMCP):
 
     async def list_tools(self, *, run_middleware: bool = True):
         """Bezzy 2.3b: add the `confirm` field to the schema of gated tools."""
-        tools = list(await self._list_tools_email_patched(run_middleware=run_middleware))
+        tools = list(
+            await self._list_tools_email_patched(run_middleware=run_middleware)
+        )
         if not bezzy_confirm.CONFIRM_TOOLS:
             return tools
         patched = []
         for tool in tools:
             if tool.name in bezzy_confirm.CONFIRM_TOOLS:
-                schema = bezzy_confirm.add_confirm_to_schema(tool.name, dict(tool.parameters))
+                schema = bezzy_confirm.add_confirm_to_schema(
+                    tool.name, dict(tool.parameters)
+                )
                 patched.append(tool.model_copy(update={"parameters": schema}))
             else:
                 patched.append(tool)
@@ -344,7 +348,9 @@ class SecureFastMCP(FastMCP):
         finally:
             bezzy_confirm.release(confirm_token)
 
-    async def _call_tool_email_patched(self, name: str, arguments: Optional[dict], *args, **kwargs):
+    async def _call_tool_email_patched(
+        self, name: str, arguments: Optional[dict], *args, **kwargs
+    ):
         arguments = arguments or {}
         if is_trust_gateway_identity():
             # The verified gateway principal is authoritative for every tool, and the

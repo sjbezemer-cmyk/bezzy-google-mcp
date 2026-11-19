@@ -97,6 +97,13 @@ class AttachmentStorage:
         """
         _ensure_storage_dir()
 
+        # Purge expired attachments (metadata + files) so they cannot accumulate;
+        # nothing else invokes cleanup_expired() in production.
+        try:
+            self.cleanup_expired()
+        except Exception as e:
+            logger.warning(f"Attachment cleanup failed: {e}")
+
         # Generate unique file ID for metadata tracking
         file_id = str(uuid.uuid4())
 

@@ -38,6 +38,10 @@ EXPOSE ${PORT:-8000}
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD sh -c 'curl -f http://localhost:${PORT:-8000}/health || exit 1'
 
+# Limit glibc malloc arenas: the server uses many worker threads (asyncio.to_thread),
+# and the default per-thread arenas fragment and make RSS creep up slowly over weeks.
+ENV MALLOC_ARENA_MAX=2
+
 # Set environment variables for Python startup args
 ENV TOOL_TIER=""
 ENV TOOLS=""

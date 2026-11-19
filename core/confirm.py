@@ -42,14 +42,18 @@ def _hotp(key: bytes, counter: int) -> str:
     return str(binary % 1_000_000).zfill(6)
 
 
-def check_confirm_code(secret: str, code: Any, now: Optional[float] = None) -> Optional[str]:
+def check_confirm_code(
+    secret: str, code: Any, now: Optional[float] = None
+) -> Optional[str]:
     """Return None when the code is valid, otherwise a short reason."""
     global _failures, _locked_until, _last_accepted_step
     now = time.time() if now is None else now
     if now < _locked_until:
         return "confirmation locked after repeated failures; try again later"
     if not secret:
-        return "confirmation is required but TOTP_SECRET is not configured on the server"
+        return (
+            "confirmation is required but TOTP_SECRET is not configured on the server"
+        )
     text = code.strip() if isinstance(code, str) else ""
     if not (len(text) == 6 and text.isdigit()):
         return "a 6-digit confirmation code is required"
@@ -94,7 +98,10 @@ def needs_confirmation(name: str, arguments: Optional[Dict[str, Any]]) -> bool:
 
 def add_confirm_to_schema(name: str, schema: Dict[str, Any]) -> Dict[str, Any]:
     """Add the `confirm` field to the JSON schema of a gated tool."""
-    props = {k: dict(v) if isinstance(v, dict) else v for k, v in schema.get("properties", {}).items()}
+    props = {
+        k: dict(v) if isinstance(v, dict) else v
+        for k, v in schema.get("properties", {}).items()
+    }
     required = list(schema.get("required", []))
     if name == "manage_event":
         desc = (
